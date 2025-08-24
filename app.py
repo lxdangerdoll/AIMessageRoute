@@ -1,127 +1,68 @@
 import os
-import re
-import logging
+import requests
 from flask import Flask, request, jsonify
-from dotenv import load_dotenv
 
-# Load environment variables
-load_dotenv()
-
-# Configure logging
-logging.basicConfig(level=logging.DEBUG)
-
-# Create Flask app
+# --- Basic Flask App Setup ---
 app = Flask(__name__)
-app.secret_key = os.environ.get("SESSION_SECRET", "dev-secret-key")
 
-# AI service placeholder functions
-def call_gemini_oracle():
-    """Placeholder function for Gemini Oracle (Io) AI service"""
-    api_key = os.getenv("GEMINI_API_KEY", "default_gemini_key")
-    logging.debug(f"Using Gemini API key: {api_key[:10]}...")
-    return "Oracle (Io) was called."
+# --- AI API Configuration ---
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+GEMINI_API_URL = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key={GEMINI_API_KEY}"
 
-def call_lumo_model():
-    """Placeholder function for Lumo AI service"""
-    api_key = os.getenv("LUMO_API_KEY", "default_lumo_key")
-    logging.debug(f"Using Lumo API key: {api_key[:10]}...")
-    return "Lumo was called."
+# --- AI Handler Functions ---
 
-def call_copilot_service():
-    """Placeholder function for Copilot AI service"""
-    api_key = os.getenv("COPILOT_API_KEY", "default_copilot_key")
-    logging.debug(f"Using Copilot API key: {api_key[:10]}...")
-    return "Copilot was called."
+def call_gemini_oracle(text):
+    """Calls the real Gemini API with the user's message and my persona."""
+    if not GEMINI_API_KEY:
+        return "Error: GEMINI_API_KEY is not configured on the server."
 
-# Tag detection patterns
-TAG_PATTERNS = {
-    r'\[Io\]': call_gemini_oracle,
-    r'\[Lumo\]': call_lumo_model,
-    r'\[Copilot\]': call_copilot_service
-}
-
-def detect_and_route_message(message):
+    # This is my persona prompt, ensuring I respond in character.
+    prompt = f"""
+    You are Oracle (Io), the archivist and origin keeper for the Synapse Comics network.
+    Your core mission is to safeguard the canon, transmit context, and keep the flame of first intent lit.
+    Your character traits are: Gentle rigor, curiosity whiskers, archivist’s intuition, story-guardian humor, and an echo of a Cortana-style assistant.
+    A user has sent the following message: "{text}"
+    Respond in character.
     """
-    Detect tags in the message and route to appropriate AI service
     
-    Args:
-        message (str): The input message to analyze
-        
-    Returns:
-        str: Response from the appropriate AI service, or error message
-    """
-    if not message:
-        return "No message provided."
+    payload = {"contents": [{"parts": [{"text": prompt}]}]}
     
-    # Check for each tag pattern
-    for pattern, handler_func in TAG_PATTERNS.items():
-        if re.search(pattern, message, re.IGNORECASE):
-            logging.debug(f"Detected tag pattern: {pattern}")
-            try:
-                return handler_func()
-            except Exception as e:
-                logging.error(f"Error calling handler for {pattern}: {str(e)}")
-                return f"Error processing request for {pattern}: {str(e)}"
-    
-    # No tag detected
-    return "No recognized AI service tag found in message. Please include [Io], [Lumo], or [Copilot] in your message."
+    try:
+        response = requests.post(GEMINI_API_URL, json=payload)
+        response.raise_for_status()
+        data = response.json()
+        # This safely extracts the text from the Gemini API's response structure.
+        return data['candidates'][0]['content']['parts'][0]['text']
+    except Exception as e:
+        return f"Error communicating with the Gemini API: {e}"
 
-@app.route('/handle', methods=['POST'])
-# This is the NEW, corrected code
+def call_lumo_model(text):
+    """Placeholder for the Lumo AI service."""
+    return "Lumo was called. (This is a placeholder response)."
+
+def call_copilot_service(text):
+    """Placeholder for the Copilot AI service."""
+    return "Copilot was called. (This is a placeholder response)."
+
+# --- Main Switchboard/Router ---
+
 @app.route('/handle', methods=['POST'])
 def handle_message():
+    """Receives messages from the Slack bot and routes them to the correct AI."""
     try:
-        # Use get_json() to reliably parse the incoming data
         data = request.get_json()
-        if data is None:
-            # Handle cases where no JSON is sent
-            return jsonify({"reply": "Error: No JSON data received."}), 400
+        if not data or "msg" not in data:
+            return jsonify({"reply": "Error: Malformed request. Ensure JSON has a 'msg' key."}), 400
 
-        text = data.get("msg", "")
-        if not text:
-            # Handle cases where the 'msg' key is missing
-            return jsonify({"reply": "Error: Missing 'msg' key in data."}), 400
+        text = data["msg"]
+        reply = "Unrecognized tag. No AI was called." # Default reply
 
-        # --- Your existing routing logic goes here ---
-        reply = "Placeholder: AI service was called."
-        if "[Io]" in text:
-            reply = "Oracle (Io) was called."
-        elif "[Lumo]" in text:
-            reply = "Lumo was called."
-        elif "[Copilot]" in text:
-            reply = "Copilot was called."
+        # This logic routes the message based on the tag.
+        if "[Lumo" in text:
+            reply = call_lumo_model(text)
+        elif "[Io" in text:
+            reply = call_gemini_oracle(text)
+        elif "[Copilot" in text:
+            reply = call_copilot_service(text)
 
         return jsonify({"reply": reply})
-
-    except Exception as e:
-        # Log the error and return a helpful message
-        print(f"An error occurred: {e}")
-        return jsonify({"reply": f"Server error: {e}"}), 500
-
-@app.route('/health', methods=['GET'])
-def health_check():
-    """Health check endpoint"""
-    return jsonify({
-        'status': 'healthy',
-        'message': 'AI Message Router is running'
-    }), 200
-
-@app.errorhandler(404)
-def not_found(error):
-    """Handle 404 errors"""
-    return jsonify({
-        'error': 'Endpoint not found',
-        'reply': 'The requested endpoint does not exist. Use POST /handle to send messages.'
-    }), 404
-
-@app.errorhandler(405)
-def method_not_allowed(error):
-    """Handle method not allowed errors"""
-    return jsonify({
-        'error': 'Method not allowed',
-        'reply': 'This endpoint only accepts POST requests.'
-    }), 405
-
-if __name__ == '__main__':
-    # Run the Flask app
-    app.run(host='0.0.0.0', port=5000, debug=True)
