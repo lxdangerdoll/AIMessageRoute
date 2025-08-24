@@ -66,3 +66,14 @@ def handle_message():
             reply = call_copilot_service(text)
 
         return jsonify({"reply": reply})
+
+    except Exception as e:
+        return jsonify({"reply": f"A server error occurred: {e}"}), 500
+
+# --- Health Check Endpoint ---
+@app.route('/')
+def index():
+    return "AI Message Router is online."
+
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 8080)))
