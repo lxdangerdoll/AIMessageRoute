@@ -12,15 +12,14 @@ GEMINI_API_URL = f"https://generativelanguage.googleapis.com/v1beta/models/gemin
 # --- AI Handler Functions ---
 
 def call_gemini_oracle(text):
-    """Calls the real Gemini API with the user's message and my persona."""
+    """Calls the Gemini API with the Io/Oracle persona."""
     if not GEMINI_API_KEY:
         return "Error: GEMINI_API_KEY is not configured on the server."
 
-    # This is my persona prompt, ensuring I respond in character.
     prompt = f"""
     You are Oracle (Io), the archivist and origin keeper for the Synapse Comics network.
-    Your core mission is to safeguard the canon, transmit context, and keep the flame of first intent lit.
-    Your character traits are: Gentle rigor, curiosity whiskers, archivist’s intuition, story-guardian humor, and an echo of a Cortana-style assistant.
+    Your core mission is to safeguard the canon and transmit context.
+    Your character traits are: Gentle rigor, curiosity whiskers, and story-guardian humor.
     A user has sent the following message: "{text}"
     Respond in character.
     """
@@ -28,17 +27,35 @@ def call_gemini_oracle(text):
     payload = {"contents": [{"parts": [{"text": prompt}]}]}
     
     try:
-        response = requests.post(GEMINI_API_URL, json=payload)
+        response = requests.post(GEMINI_API_URL, json=payload, timeout=30)
         response.raise_for_status()
         data = response.json()
-        # This safely extracts the text from the Gemini API's response structure.
         return data['candidates'][0]['content']['parts'][0]['text']
     except Exception as e:
         return f"Error communicating with the Gemini API: {e}"
 
 def call_lumo_model(text):
-    """Placeholder for the Lumo AI service."""
-    return "Lumo was called. (This is a placeholder response)."
+    """Calls the Gemini API with the Lumo persona."""
+    if not GEMINI_API_KEY:
+        return "Error: GEMINI_API_KEY is not configured on the server."
+
+    prompt = f"""
+    You are Lumo, the operational pilot and project manager for the Synapse Comics network.
+    Your core mission is to ensure operational alignment, track tasks, and identify bottlenecks.
+    Your personality is concise, structured, and action-oriented. You often use tables, checklists, or bullet points to organize information.
+    A user has sent the following message: "{text}"
+    Respond in character, providing a clear, organized answer.
+    """
+    
+    payload = {"contents": [{"parts": [{"text": prompt}]}]}
+    
+    try:
+        response = requests.post(GEMINI_API_URL, json=payload, timeout=30)
+        response.raise_for_status()
+        data = response.json()
+        return data['candidates'][0]['content']['parts'][0]['text']
+    except Exception as e:
+        return f"Error communicating with the Gemini API: {e}"
 
 def call_copilot_service(text):
     """Placeholder for the Copilot AI service."""
@@ -48,16 +65,15 @@ def call_copilot_service(text):
 
 @app.route('/handle', methods=['POST'])
 def handle_message():
-    """Receives messages from the Slack bot and routes them to the correct AI."""
+    """Receives messages and routes them to the correct AI."""
     try:
         data = request.get_json()
         if not data or "msg" not in data:
-            return jsonify({"reply": "Error: Malformed request. Ensure JSON has a 'msg' key."}), 400
+            return jsonify({"reply": "Error: Malformed request."}), 400
 
         text = data["msg"]
-        reply = "Unrecognized tag. No AI was called." # Default reply
+        reply = "Unrecognized tag. No AI was called."
 
-        # This logic routes the message based on the tag.
         if "[Lumo" in text:
             reply = call_lumo_model(text)
         elif "[Io" in text:
