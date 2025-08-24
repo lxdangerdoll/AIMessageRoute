@@ -67,55 +67,36 @@ def detect_and_route_message(message):
     return "No recognized AI service tag found in message. Please include [Io], [Lumo], or [Copilot] in your message."
 
 @app.route('/handle', methods=['POST'])
+# This is the NEW, corrected code
+@app.route('/handle', methods=['POST'])
 def handle_message():
-    """
-    Main endpoint to handle AI message routing
-    
-    Expects JSON payload with 'msg' key
-    Returns JSON response with 'reply' key
-    """
     try:
-        # Check if request contains JSON data
-        if not request.is_json:
-            return jsonify({
-                'error': 'Request must contain JSON data',
-                'reply': 'Invalid request format. Please send JSON data.'
-            }), 400
-        
-        # Get JSON data from request
+        # Use get_json() to reliably parse the incoming data
         data = request.get_json()
-        
-        # Validate that 'msg' key exists
-        if not data or 'msg' not in data:
-            return jsonify({
-                'error': 'Missing required field: msg',
-                'reply': 'Request must contain a "msg" field with the message content.'
-            }), 400
-        
-        message = data['msg']
-        
-        # Log the incoming message
-        logging.info(f"Received message: {message}")
-        
-        # Process the message and get response
-        reply = detect_and_route_message(message)
-        
-        # Log the response
-        logging.info(f"Sending reply: {reply}")
-        
-        # Return successful response
-        return jsonify({
-            'reply': reply
-        }), 200
-        
+        if data is None:
+            # Handle cases where no JSON is sent
+            return jsonify({"reply": "Error: No JSON data received."}), 400
+
+        text = data.get("msg", "")
+        if not text:
+            # Handle cases where the 'msg' key is missing
+            return jsonify({"reply": "Error: Missing 'msg' key in data."}), 400
+
+        # --- Your existing routing logic goes here ---
+        reply = "Placeholder: AI service was called."
+        if "[Io]" in text:
+            reply = "Oracle (Io) was called."
+        elif "[Lumo]" in text:
+            reply = "Lumo was called."
+        elif "[Copilot]" in text:
+            reply = "Copilot was called."
+
+        return jsonify({"reply": reply})
+
     except Exception as e:
-        # Handle unexpected errors
-        error_msg = f"Internal server error: {str(e)}"
-        logging.error(error_msg)
-        return jsonify({
-            'error': 'Internal server error',
-            'reply': 'An unexpected error occurred while processing your request.'
-        }), 500
+        # Log the error and return a helpful message
+        print(f"An error occurred: {e}")
+        return jsonify({"reply": f"Server error: {e}"}), 500
 
 @app.route('/health', methods=['GET'])
 def health_check():
