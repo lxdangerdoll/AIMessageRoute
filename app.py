@@ -6,7 +6,7 @@ from flask import Flask, request, jsonify
 app = Flask(__name__)
 
 # --- AI API Configuration ---
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+GEMINI_API_KEY = os.getenv("AIzaSyDFl8-h-TAaoNzNS5Cl3mgpiklKNKEIK5c")
 GEMINI_API_URL = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key={GEMINI_API_KEY}"
 
 # --- AI Handler Functions ---
